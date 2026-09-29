@@ -6,7 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from agentforge.config import TASKS_ROOT, load_task_spec
-from agentforge.docker_utils import build_image, cleanup_agentforge_resources, ensure_docker_available, run_command
+from agentforge.docker_utils import NETWORKED_TASK_ID, build_image, cleanup_agentforge_resources, ensure_docker_available, run_command, start_task_container
 from agentforge.exceptions import EvaluationError, TaskConfigError
 from agentforge.grader import grade_task
 from agentforge.models import EvaluationResult, ValidationReport, ValidationStep
@@ -50,25 +50,29 @@ def validate_task(task_id: str, *, verbose: bool = False) -> ValidationReport:
     image_name = build_image(task_dir, task_id, verbose=verbose)
     steps.append(ValidationStep(name="image builds", success=True, detail=f"Built {image_name}"))
 
-    container_name = f"agentforge-{task_id}-{uuid4().hex[:8]}"
-    run_cmd = [
-        "docker",
-        "run",
-        "-d",
-        "--name",
-        container_name,
-        "--label",
-        "agentforge.managed=true",
-        "--label",
-        f"agentforge.task={task_id}",
-        image_name,
-        "bash",
-        "-lc",
-        "sleep 600",
-    ]
-    container_start = run_command(run_cmd, capture_output=True, check=False)
-    if container_start.returncode != 0:
-        raise EvaluationError(f"Failed to launch validation container for {task_id}: {container_start.stderr or container_start.stdout}")
+    if task_id == NETWORKED_TASK_ID:
+        container_name = start_task_container(task_id, image_name)
+        steps.append(ValidationStep(name="backend and isolated network started", success=True, detail="Client and backend are running on the managed Docker network"))
+    else:
+        container_name = f"agentforge-{task_id}-{uuid4().hex[:8]}"
+        run_cmd = [
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            container_name,
+            "--label",
+            "agentforge.managed=true",
+            "--label",
+            f"agentforge.task={task_id}",
+            image_name,
+            "bash",
+            "-lc",
+            "sleep 600",
+        ]
+        container_start = run_command(run_cmd, capture_output=True, check=False)
+        if container_start.returncode != 0:
+            raise EvaluationError(f"Failed to launch validation container for {task_id}: {container_start.stderr or container_start.stdout}")
 
     try:
         initial = run_command(["docker", "exec", container_name, "bash", "-lc", spec.test_command], capture_output=True, check=False, timeout=spec.timeout_seconds)
@@ -86,7 +90,8 @@ def validate_task(task_id: str, *, verbose: bool = False) -> ValidationReport:
             raise EvaluationError(f"Post-solution tests failed for {task_id}: {post.stderr or post.stdout}")
         steps.append(ValidationStep(name="post-solution tests passed", success=True, detail=f"Exit code {post.returncode}"))
     finally:
-        run_command(["docker", "rm", "-f", container_name], capture_output=True, check=False)
+        if task_id != NETWORKED_TASK_ID:
+            run_command(["docker", "rm", "-f", container_name], capture_output=True, check=False)
 
     cleanup_agentforge_resources()
     steps.append(ValidationStep(name="cleanup successful", success=True, detail="AgentForge resources removed"))
