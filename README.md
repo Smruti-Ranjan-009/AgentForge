@@ -1,149 +1,370 @@
 # AgentForge
 
-![CI](https://github.com/Smruti-Ranjan-009/AgentForge/actions/workflows/ci.yml/badge.svg?branch=main)
+[![CI](https://github.com/Smruti-Ranjan-009/AgentForge/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Smruti-Ranjan-009/AgentForge/actions/workflows/ci.yml)
 
-AgentForge is a Docker-based benchmark and evaluation framework for testing developers and coding agents on reproducible, real-world debugging tasks. It currently provides five benchmarks; it does not publish automated coding-agent evaluation results.
+**A Docker-based benchmark and evaluation framework for realistic software-engineering debugging tasks.**
 
-The workflow is deliberately practical: start from a broken environment, investigate it interactively, make a fix, grade the same persistent environment, generate a report, and clean up managed Docker resources.
+AgentForge gives developers and coding agents a broken, reproducible environment to investigate, repair, grade, report, and clean up. Each benchmark runs in isolated Docker resources, starts from a known failing state, and is validated against behavior-based tests and a reference solution.
 
-## Why AgentForge Exists
+> **Current scope:** 5 reproducible debugging benchmarks covering Docker networking, Python dependency conflicts, AsyncIO shutdown behavior, Git recovery, and CI/CD failures.
 
-Modern coding agents are often evaluated on short code-generation tasks that do not reflect the realities of debugging production systems. AgentForge allows teams to measure how well an agent or engineer can:
+---
 
-- reason through a failing environment
-- isolate the root cause
-- patch a real runtime issue
-- validate the fix with automated tests
-- document the outcome in a repeatable evaluation report
+## Why AgentForge
 
-## Features
+Many coding benchmarks stop at code generation. Real engineering work often starts after the code already exists: a service cannot reach another container, a dependency set is incompatible, an async worker will not shut down cleanly, Git history appears lost, or CI fails even though local development works.
 
-- 5 reproducible debugging benchmarks across Docker, Python, AsyncIO, Git, and CI/CD
-- Docker-isolated task execution with persistent interactive environments
-- a broken → investigate → fix → grade workflow
-- automated reference-solution validation of the broken and repaired states
-- behavior-based grading and structured JSON and Markdown evaluation reports
-- deterministic, label-scoped cleanup of AgentForge-managed Docker resources
-- GitHub Actions CI for pytest and validation of all five benchmarks
-- benchmark failure analysis documenting root cause, investigation, evaluation criteria, and anticipated failure modes
-- local execution without cloud services or external API dependencies
+AgentForge is designed around that workflow:
+
+```text
+Broken environment
+        ↓
+Investigate in a real shell
+        ↓
+Apply a fix
+        ↓
+Run behavioral tests
+        ↓
+Grade the same environment
+        ↓
+Generate a report
+        ↓
+Clean up managed resources
+```
+
+The goal is to make debugging tasks **reproducible, auditable, and easy to evaluate**.
+
+---
+
+## What It Demonstrates
+
+- **Real CLI debugging** inside persistent Linux containers
+- **Docker-isolated execution** with label-scoped resource management
+- **Behavior-based grading** instead of file-text checks
+- **Broken → fixed validation** using reference solutions
+- **Persistent run → grade lifecycle** on the same task environment
+- **JSON and Markdown evaluation reports**
+- **Deterministic cleanup** of AgentForge-managed containers and networks
+- **GitHub Actions CI** that runs tests and validates all benchmarks
+- **Benchmark analysis** covering root cause, investigation flow, anticipated failure modes, and task quality
+
+No cloud service or external API is required for the current benchmark suite.
+
+---
+
+## Included Benchmarks
+
+| Benchmark | Category | Difficulty | What it evaluates |
+| --- | --- | --- | --- |
+| `docker-network-debug` | Docker | Medium | Container isolation, Docker DNS, service discovery |
+| `python-dependency-conflict` | Python | Medium | Dependency resolution and environment debugging |
+| `async-worker-shutdown` | Python / AsyncIO | Hard | Graceful cancellation and async task cleanup |
+| `git-history-recovery` | Git | Medium | Reflog/history recovery and repository state |
+| `ci-pipeline-debug` | CI/CD | Medium | Pipeline execution, paths, and environment assumptions |
+
+---
+
+## Example: Docker Network Debug
+
+The Docker networking benchmark uses a real two-container environment:
+
+```text
+Client / debug container
+          |
+          | isolated Docker network
+          v
+     Backend container
+```
+
+The task starts with a broken runtime configuration:
+
+```env
+BACKEND_URL=http://localhost:8000
+```
+
+Inside the client container, `localhost` refers to the client itself—not the backend. The solver must investigate the environment, discover the backend through Docker DNS, and repair the runtime configuration.
+
+```bash
+getent hosts backend
+curl -v http://localhost:8000
+curl -v http://backend:8000
+```
+
+The corrected configuration uses the backend service name:
+
+```env
+BACKEND_URL=http://backend:8000
+```
+
+The grader then verifies the fix with a real HTTP request.
+
+For a detailed task-quality review, see [Docker Network Debug — Benchmark Analysis](analysis/docker-network-debug.md).
+
+---
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    CLI --> TaskLoader
-    TaskLoader --> Validator
-    TaskLoader --> Runner
-    Runner --> Docker
-    Docker --> TaskEnvironment
-    TaskEnvironment --> Tests
-    Tests --> Grader
-    Grader --> Reporter
+    CLI[AgentForge CLI] --> Loader[Task Loader]
+    Loader --> Runner[Task Runner]
+    Loader --> Validator[Validator]
+
+    Runner --> Docker[Docker Runtime]
+    Validator --> Docker
+
+    Docker --> Env[Task Environment]
+    Env --> Tests[Behavioral Tests]
+
+    Tests --> Grader[Grader]
+    Grader --> Reporter[JSON / Markdown Reporter]
+    Reporter --> Cleanup[Managed Cleanup]
 ```
+
+Core modules:
+
+```text
+agentforge/
+├── cli.py
+├── config.py
+├── docker_utils.py
+├── grader.py
+├── models.py
+├── reporter.py
+├── runner.py
+└── validator.py
+```
+
+---
+
+## Requirements
+
+- Python **3.11+**
+- Docker Desktop or Docker Engine
+- Git
+- Windows, macOS, or Linux host
+
+Docker is required for benchmark execution and integration tests.
+
+---
 
 ## Quick Start
 
-PowerShell:
+### 1. Clone
 
-```powershell
-cd agentforge
+```bash
+git clone https://github.com/Smruti-Ranjan-009/AgentForge.git
+cd AgentForge
+```
+
+### 2. Create an environment
+
+Using `venv`:
+
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e .
+```
+
+Windows CMD:
+
+```cmd
+.venv\Scripts\activate
+```
+
+macOS / Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+Or use Conda:
+
+```bash
+conda create -n agentforge python=3.11
+conda activate agentforge
+```
+
+### 3. Install
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -e .
+```
+
+### 4. Verify
+
+```bash
 agentforge --help
 agentforge list
 ```
 
-## CLI Usage
+---
+
+## CLI
 
 ```bash
 agentforge list
 agentforge inspect <task-id>
 agentforge validate <task-id>
+agentforge validate-all
 agentforge run <task-id>
 agentforge grade <task-id>
 agentforge solve <task-id>
 agentforge report <task-id>
 agentforge cleanup
-agentforge validate-all
 ```
 
-## Example
+### Command overview
 
-```powershell
+| Command | Purpose |
+| --- | --- |
+| `list` | Show available benchmarks |
+| `inspect` | Display task metadata and paths |
+| `validate` | Verify one benchmark end to end |
+| `validate-all` | Validate the complete benchmark suite |
+| `run` | Start a persistent interactive task environment |
+| `grade` | Grade the active environment |
+| `solve` | Execute the reference solution |
+| `report` | Generate JSON and Markdown evaluation reports |
+| `cleanup` | Remove AgentForge-managed resources |
+
+---
+
+## End-to-End Demo
+
+Start a task:
+
+```bash
+agentforge run docker-network-debug
+```
+
+AgentForge opens an interactive shell inside the task environment:
+
+```text
+Starting task: docker-network-debug
+
+Environment:
+Container: agentforge-docker-network-debug
+
+Opening shell...
+
+root@<container>:/workspace#
+```
+
+Investigate and fix the task, then exit the shell.
+
+Grade the **same persistent environment**:
+
+```bash
+agentforge grade docker-network-debug
+```
+
+Example result:
+
+```text
+Task Evaluation
+────────────────────────────
+Task: docker-network-debug
+Tests passed:       1 / 1
+Task completed:     YES
+Exit code:          0
+```
+
+Generate reports:
+
+```bash
+agentforge report docker-network-debug
+```
+
+Clean up:
+
+```bash
+agentforge cleanup
+```
+
+---
+
+## Benchmark Validation
+
+A benchmark is considered valid only when AgentForge can prove the full lifecycle:
+
+```text
+Task files present
+        ↓
+Schema valid
+        ↓
+Docker image builds
+        ↓
+Broken state fails
+        ↓
+Reference solution executes
+        ↓
+Post-solution tests pass
+        ↓
+Cleanup succeeds
+```
+
+Example:
+
+```bash
 agentforge validate docker-network-debug
 ```
-
-Example output:
 
 ```text
 AgentForge Task Validator
 ────────────────────────────────
-✓ task directory: Found ...\tasks\docker-network-debug
-✓ schema valid: Loaded task 'Docker Network Debugging'
-✓ image builds: Built agentforge-docker-network-debug:57d39b80
-✓ broken state confirmed: Test failed as expected with exit code 1
-✓ reference solution executed: Reference fix applied successfully
-✓ post-solution tests passed: Exit code 0
-✓ cleanup successful: AgentForge resources removed
+✓ task directory
+✓ task.yaml
+✓ schema valid
+✓ required files
+✓ Dockerfile
+✓ image builds
+✓ backend and isolated network started
+✓ broken state confirmed
+✓ reference solution executed
+✓ post-solution tests passed
+✓ cleanup successful
 
 Task valid.
 ```
 
-## Included Benchmarks
-
-| Task | Category | Difficulty | Focus |
-| --- | --- | --- | --- |
-| docker-network-debug | Docker | Medium | Networking |
-| python-dependency-conflict | Python | Medium | Dependencies |
-| async-worker-shutdown | Python | Hard | AsyncIO |
-| git-history-recovery | Git | Medium | Recovery |
-| ci-pipeline-debug | CI/CD | Medium | Pipeline debugging |
-
-## Benchmark Analysis
-
-[Docker Network Debug — Benchmark Analysis](analysis/docker-network-debug.md) documents the root cause, debugging workflow, evaluation criteria, anticipated failure modes, and benchmark quality review.
+---
 
 ## Task Format
 
-Each benchmark contains a task directory with these components:
+Each benchmark follows a simple, auditable structure:
 
 ```text
 tasks/<task-id>/
 ├── task.yaml
 ├── instruction.md
 ├── environment/
+│   └── Dockerfile
 ├── solution/
-├── tests/
-└── ...
+│   └── solve.sh
+└── tests/
+    └── test.sh
 ```
 
-A task must define:
+A task defines:
 
-- metadata in `task.yaml`
-- a Dockerfile in `environment/Dockerfile`
-- a broken initial environment
-- a reference solution in `solution/solve.sh`
-- automated tests in `tests/test.sh`
+- metadata and timeout configuration
+- a reproducible Docker environment
+- a deliberately broken initial state
+- an instruction that does not reveal the solution
+- a reference solution
+- behavioral tests that determine success
 
-## Evaluation Lifecycle
+See [CONTRIBUTING.md](CONTRIBUTING.md) for task-authoring guidance.
 
-```text
-Broken Environment
-        ↓
-Agent / Developer Investigation
-        ↓
-Patch
-        ↓
-Automated Tests
-        ↓
-Grader
-        ↓
-Evaluation Report
-```
+---
 
-## Example Evaluation Report
+## Evaluation Reports
+
+`agentforge report <task-id>` writes structured JSON and Markdown reports under `reports/`.
+
+Example JSON shape:
 
 ```json
 {
@@ -153,33 +374,124 @@ Evaluation Report
   "tests_total": 1,
   "duration_seconds": 1.12,
   "exit_code": 0,
-  "error_category": "SUCCESS",
-  "notes": "Evaluation completed."
+  "error_category": "SUCCESS"
 }
 ```
 
+Generated reports are intentionally excluded from version control.
+
+---
+
+## Benchmark Analysis
+
+AgentForge also documents how individual benchmarks should be reasoned about and audited.
+
+Current analysis:
+
+- [Docker Network Debug — Benchmark Analysis](analysis/docker-network-debug.md)
+
+The analysis covers:
+
+- task objective
+- environment design
+- debugging commands
+- root cause
+- expected fix
+- behavioral verification
+- anticipated failure modes
+- benchmark quality and limitations
+
+This is intentionally separate from claiming that a specific coding model exhibited those failure modes unless an actual model run has been recorded.
+
+---
+
+## CI
+
+GitHub Actions runs on pushes and pull requests targeting `main`.
+
+The CI workflow:
+
+1. sets up Python 3.11
+2. installs project dependencies
+3. checks dependency consistency
+4. verifies Docker availability
+5. runs the pytest suite
+6. validates all five benchmarks
+7. cleans up AgentForge-managed resources
+
+Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+
+---
+
 ## Design Principles
 
-- deterministic
-- realistic
-- reproducible
-- auditable
-- behavior-based testing
+**Deterministic**  
+Tasks should begin from a known failure and produce repeatable results.
+
+**Realistic**  
+Benchmarks should resemble engineering problems developers encounter in actual repositories and runtime environments.
+
+**Behavior-based**  
+Tests should verify the system works, not merely search for expected text in a file.
+
+**Isolated**  
+Task resources should not interfere with the host or unrelated Docker resources.
+
+**Auditable**  
+Instructions, tests, reference solutions, validation steps, and reports should make success criteria clear.
+
+**Safe cleanup**  
+AgentForge removes only resources labeled as AgentForge-managed.
+
+---
+
+## Current Scope and Limitations
+
+AgentForge is intentionally a local, Docker-based evaluation framework.
+
+Current limitations:
+
+- benchmarks are deterministic debugging tasks rather than large open-ended repository changes
+- the current suite contains five tasks
+- coding-agent adapters are not yet implemented
+- command-trajectory capture is not yet part of the core evaluation flow
+- there is no hosted leaderboard or multi-user web service
+
+These are deliberate tradeoffs for a small, reproducible benchmark platform.
+
+---
 
 ## Roadmap
 
-Planned future improvements include:
+Potential future work:
 
 - coding-agent adapters
-- Claude Code integration
-- OpenAI Codex integration
-- trajectory capture
-- difficulty calibration
-- parallel evaluation
-- benchmark leaderboard
+- command-trajectory capture
+- repeated model-attempt evaluation
+- benchmark difficulty calibration
+- parallel benchmark execution
+- richer failure categorization
+- benchmark result comparison
+- optional leaderboard/report aggregation
 
-## Motivation
+---
 
-Coding agents are increasingly being used to modify real projects, but many of the benchmark datasets today are too synthetic or too narrow to reflect the actual work of debugging and maintaining software. AgentForge is designed to provide a local, practical evaluation harness for the types of problems engineers encounter every day: bad networking, broken dependency sets, asynchronous shutdown issues, stale Git state, and pipeline failures.
+## Contributing
 
-This project is intentionally lightweight and runs locally, so it is suitable for engineering teams, individual practitioners, and portfolio demonstrations that need realistic evidence of debugging capability.
+New benchmarks should be:
+
+- reproducible
+- behavior-tested
+- isolated
+- realistic
+- deterministic
+- solvable by a reference solution
+- cleanly removable after execution
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## License
+
+MIT
