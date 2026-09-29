@@ -9,7 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from agentforge.cli import app
-from agentforge.docker_utils import cleanup_agentforge_resources, run_command
+from agentforge.docker_utils import cleanup_agentforge_resources, find_active_task_container, run_command, start_task_container
 from agentforge.exceptions import EvaluationError
 from agentforge.grader import grade_task
 from agentforge.models import EvaluationResult
@@ -160,3 +160,108 @@ def test_cleanup_removes_running_managed_container():
         assert post_cleanup.stdout.strip() == ""
     finally:
         run_command(["docker", "rm", "-f", container_name], capture_output=True, check=False)
+
+
+@pytest.mark.integration
+def test_docker_network_debug_two_container_lifecycle():
+    docker_info = run_command(["docker", "info"], capture_output=True, check=False)
+    if docker_info.returncode != 0:
+        pytest.skip("Docker is unavailable for the docker-network-debug integration test.")
+
+    task = TaskRunner("docker-network-debug")
+    image_name = task.build()
+    client_name = start_task_container(task.task_id, image_name)
+    backend_name = "agentforge-docker-network-debug-backend"
+
+    try:
+        for container_name in (client_name, backend_name):
+            state = run_command(
+                ["docker", "inspect", "--format", "{{.State.Running}}", container_name],
+                capture_output=True,
+                check=False,
+            )
+            assert state.returncode == 0
+            assert state.stdout.strip().lower() == "true"
+            labels = run_command(
+                [
+                    "docker",
+                    "inspect",
+                    "--format",
+                    '{{index .Config.Labels "agentforge.managed"}} {{index .Config.Labels "agentforge.task"}}',
+                    container_name,
+                ],
+                capture_output=True,
+                check=False,
+            )
+            assert labels.stdout.strip() == "true docker-network-debug"
+
+        client_network = run_command(
+            ["docker", "inspect", "--format", "{{range $name, $network := .NetworkSettings.Networks}}{{$name}}{{end}}", client_name],
+            capture_output=True,
+            check=False,
+        )
+        backend_network = run_command(
+            ["docker", "inspect", "--format", "{{range $name, $network := .NetworkSettings.Networks}}{{$name}}{{end}}", backend_name],
+            capture_output=True,
+            check=False,
+        )
+        assert client_network.returncode == backend_network.returncode == 0
+        assert client_network.stdout.strip() == backend_network.stdout.strip()
+        assert client_network.stdout.strip() == "agentforge-docker-network-debug-network"
+
+        initial_config = run_command(
+            ["docker", "exec", client_name, "cat", "/workspace/config.env"],
+            capture_output=True,
+            check=False,
+        )
+        assert initial_config.stdout.strip() == "BACKEND_URL=http://localhost:8000"
+        initial_test = run_command(
+            ["docker", "exec", client_name, "bash", "-lc", "bash /workspace/tests/test.sh"],
+            capture_output=True,
+            check=False,
+        )
+        assert initial_test.returncode != 0
+
+        localhost_request = run_command(
+            ["docker", "exec", client_name, "curl", "-fsS", "http://localhost:8000"],
+            capture_output=True,
+            check=False,
+        )
+        assert localhost_request.returncode != 0
+        dns_lookup = run_command(["docker", "exec", client_name, "getent", "hosts", "backend"], capture_output=True, check=False)
+        assert dns_lookup.returncode == 0
+        backend_request = run_command(
+            ["docker", "exec", client_name, "curl", "-fsS", "http://backend:8000"],
+            capture_output=True,
+            check=False,
+        )
+        assert backend_request.returncode == 0
+        assert backend_request.stdout.strip() == "AgentForge backend is healthy."
+
+        solution = run_command(
+            ["docker", "exec", client_name, "bash", "-lc", "bash /workspace/solution/solve.sh"],
+            capture_output=True,
+            check=False,
+        )
+        assert solution.returncode == 0
+        assert find_active_task_container(task.task_id) == client_name
+        result = grade_task(task.task_id, container_name=find_active_task_container(task.task_id))
+        assert result.success is True
+        assert result.tests_passed == result.tests_total == 1
+        assert find_active_task_container(task.task_id) == client_name
+    finally:
+        cleanup_agentforge_resources()
+
+    remaining_containers = run_command(
+        ["docker", "ps", "-aq", "--filter", "label=agentforge.managed=true"],
+        capture_output=True,
+        check=False,
+    )
+    remaining_networks = run_command(
+        ["docker", "network", "ls", "-q", "--filter", "label=agentforge.managed=true"],
+        capture_output=True,
+        check=False,
+    )
+    assert remaining_containers.returncode == remaining_networks.returncode == 0
+    assert remaining_containers.stdout.strip() == ""
+    assert remaining_networks.stdout.strip() == ""
