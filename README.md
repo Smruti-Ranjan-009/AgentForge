@@ -1,8 +1,10 @@
 # AgentForge
 
-> A Docker-based benchmark for evaluating coding agents on realistic software-engineering debugging tasks.
+![CI](https://github.com/Smruti-Ranjan-009/AgentForge/actions/workflows/ci.yml/badge.svg?branch=main)
 
-AgentForge is a lightweight local benchmark framework for testing how well developers and coding agents diagnose, fix, and validate real-world software failures in isolated Linux environments. It is intentionally focused on reproducible engineering problems: broken Docker networking, dependency conflicts, async shutdown logic, Git recovery, and CI pipeline debugging.
+AgentForge is a Docker-based benchmark and evaluation framework for testing developers and coding agents on reproducible, real-world debugging tasks. It currently provides five benchmarks; it does not publish automated coding-agent evaluation results.
+
+The workflow is deliberately practical: start from a broken environment, investigate it interactively, make a fix, grade the same persistent environment, generate a report, and clean up managed Docker resources.
 
 ## Why AgentForge Exists
 
@@ -16,14 +18,15 @@ Modern coding agents are often evaluated on short code-generation tasks that do 
 
 ## Features
 
-- isolated Docker environments for each benchmark
-- deterministic task definitions with validation metadata
-- reference solutions for comparison and demo purposes
-- automated grading for behavior-based checks
-- structured JSON and Markdown evaluation reports
-- Rich CLI workflow for listing, inspecting, running, and validating tasks
-- failure classification and cleanup labeling for safe resource management
-- reproducibility and local-only execution without cloud services
+- 5 reproducible debugging benchmarks across Docker, Python, AsyncIO, Git, and CI/CD
+- Docker-isolated task execution with persistent interactive environments
+- a broken → investigate → fix → grade workflow
+- automated reference-solution validation of the broken and repaired states
+- behavior-based grading and structured JSON and Markdown evaluation reports
+- deterministic, label-scoped cleanup of AgentForge-managed Docker resources
+- GitHub Actions CI for pytest and validation of all five benchmarks
+- benchmark failure analysis documenting root cause, investigation, evaluation criteria, and anticipated failure modes
+- local execution without cloud services or external API dependencies
 
 ## Architecture
 
@@ -97,6 +100,10 @@ Task valid.
 | async-worker-shutdown | Python | Hard | AsyncIO |
 | git-history-recovery | Git | Medium | Recovery |
 | ci-pipeline-debug | CI/CD | Medium | Pipeline debugging |
+
+## Benchmark Analysis
+
+[Docker Network Debug — Benchmark Analysis](analysis/docker-network-debug.md) documents the root cause, debugging workflow, evaluation criteria, anticipated failure modes, and benchmark quality review.
 
 ## Task Format
 
