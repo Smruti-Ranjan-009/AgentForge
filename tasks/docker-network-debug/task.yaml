@@ -1,0 +1,18 @@
+id: docker-network-debug
+title: Docker Network Debugging
+difficulty: medium
+category: docker
+description: >
+  Diagnose and repair a container networking failure.
+timeout_seconds: 600
+environment:
+  dockerfile: environment/Dockerfile
+tests:
+  command: bash tests/test.sh
+solution:
+  command: bash solution/solve.sh
+tags:
+  - docker
+  - networking
+  - debugging
+  - linux

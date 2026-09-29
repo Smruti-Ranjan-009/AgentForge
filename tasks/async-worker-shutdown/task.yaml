@@ -1,0 +1,18 @@
+id: async-worker-shutdown
+title: Async Worker Shutdown
+difficulty: hard
+category: python
+description: >
+  A background asyncio worker exits without draining cancelled tasks, leaving shutdown in a broken state.
+timeout_seconds: 600
+environment:
+  dockerfile: environment/Dockerfile
+tests:
+  command: bash tests/test.sh
+solution:
+  command: bash solution/solve.sh
+tags:
+  - asyncio
+  - shutdown
+  - python
+  - debugging

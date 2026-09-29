@@ -1,0 +1,18 @@
+id: python-dependency-conflict
+title: Python Dependency Conflict
+difficulty: medium
+category: python
+description: >
+  A Python service fails because its dependency versions are incompatible.
+timeout_seconds: 600
+environment:
+  dockerfile: environment/Dockerfile
+tests:
+  command: bash tests/test.sh
+solution:
+  command: bash solution/solve.sh
+tags:
+  - python
+  - dependencies
+  - packaging
+  - debugging

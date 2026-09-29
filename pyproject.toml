@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentforge"
+version = "0.1.0"
+description = "Docker-based benchmark and evaluation framework for coding-agent debugging tasks."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "AgentForge" }]
+license = { text = "MIT" }
+dependencies = [
+    "typer>=0.12.5",
+    "rich>=13.9.4",
+    "pydantic>=2.9.2",
+    "PyYAML>=6.0.2",
+    "docker>=7.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.3",
+    "pytest-mock>=3.14.0",
+    "pytest-cov>=5.0.0",
+]
+
+[project.scripts]
+agentforge = "agentforge.cli:app"
+
+[tool.setuptools]
+packages = ["agentforge"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+markers = [
+    "integration: Docker-backed integration tests",
+]

@@ -1,0 +1,18 @@
+id: git-history-recovery
+title: Git History Recovery
+difficulty: medium
+category: git
+description: >
+  A valuable commit was lost after a reset and must be recovered from the reflog.
+timeout_seconds: 600
+environment:
+  dockerfile: environment/Dockerfile
+tests:
+  command: bash tests/test.sh
+solution:
+  command: bash solution/solve.sh
+tags:
+  - git
+  - recovery
+  - history
+  - debugging

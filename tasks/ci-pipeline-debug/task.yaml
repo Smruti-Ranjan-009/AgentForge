@@ -1,0 +1,18 @@
+id: ci-pipeline-debug
+title: CI Pipeline Debugging
+difficulty: medium
+category: ci
+description: >
+  A CI script is using the wrong working directory and fails in automation.
+timeout_seconds: 600
+environment:
+  dockerfile: environment/Dockerfile
+tests:
+  command: bash tests/test.sh
+solution:
+  command: bash solution/solve.sh
+tags:
+  - ci
+  - pipeline
+  - shell
+  - automation
