@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+
+      - name: Check dependency consistency
+        run: python -m pip check
+
+      - name: Run test suite
+        run: python -m pytest -v
+
+      - name: Verify Docker availability
+        run: |
+          docker version
+          docker info
+
+      - name: Validate all benchmarks
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cleanup() {
+            status=$?
+            agentforge cleanup || {
+              if [ "$status" -eq 0 ]; then
+                status=1
+              fi
+            }
+            exit "$status"
+          }
+          trap cleanup EXIT
+          agentforge validate docker-network-debug
+          agentforge validate python-dependency-conflict
+          agentforge validate async-worker-shutdown
+          agentforge validate git-history-recovery
+          agentforge validate ci-pipeline-debug
